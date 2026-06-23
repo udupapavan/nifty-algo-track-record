@@ -183,6 +183,7 @@
   .badge.loss{background:var(--red-dim);color:var(--red);}
   .chart-link{color:var(--text-faint);text-decoration:none;border-bottom:1px dashed var(--text-faint);}
   .chart-link:hover{color:var(--amber);border-color:var(--amber);}
+  .chart-link.muted{color:var(--text-faint);opacity:0.4;border-bottom:none;cursor:default;}
 
   /* ---------- TRUST STRIP ---------- */
   .trust-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
@@ -295,6 +296,7 @@
             <th class="num">Buy</th>
             <th class="num">P&amp;L</th>
             <th>Result</th>
+            <th>Signal</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -318,7 +320,7 @@
       <div class="trust-item">
         <i class="ti ti-photo"></i>
         <h4>Chart proof on every trade</h4>
-        <p>Each row links to the actual execution screenshot, so you can verify timing and price against the candle.</p>
+        <p>Each row links to the actual setup and execution screenshot, so you can verify timing and price against the candle.</p>
       </div>
       <div class="trust-item">
         <i class="ti ti-ban"></i>
@@ -349,12 +351,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
+// Each trade: signal = TradingView setup link (shown before the trade), chart = execution/result screenshot (e.g. Google Drive link)
 const TRADES = [
-  {date:'2026-06-23', symbol:'NIFTY 24000 CE', qty:65, sell:37.90, buy:3, chart:'https://drive.google.com/file/d/1WFYDswKx-U8KCGjNGRIYaqs9mZuxqqGP/view?usp=drive_link'},
-  {date:'2026-06-22', symbol:'NIFTY 24100 CE', qty:65, sell:91.10	, buy:74.90	, chart:'https://drive.google.com/file/d/1xfeIcnyVi331QWtDYDPM6UJKjJvWQkbH/view?usp=sharing'},
-  {date:'2026-06-19', symbol:'NIFTY 23900 CE', qty:65, sell:130.85	, buy:173.70	, chart:'https://drive.google.com/file/d/1xBHw6N972i5-kUXBSMPGwOstmCL04mIf/view?usp=sharing'},
-  {date:'2026-06-18', symbol:'NIFTY 24100 PE', qty:65, sell:130.30, buy:82.75, chart:'https://drive.google.com/file/d/10gVxqw7CKH3_P0EjPHtNEooEWaEP4xqx/view?usp=sharing'},
-  
+  {date:'2026-06-23', symbol:'NIFTY 24000 CE', qty:65, sell:37.90, buy:3, signal:'', chart:'https://drive.google.com/file/d/1WFYDswKx-U8KCGjNGRIYaqs9mZuxqqGP/view?usp=drive_link'},
+  {date:'2026-06-22', symbol:'NIFTY 24100 CE', qty:65, sell:91.10, buy:74.90, signal:'', chart:'https://drive.google.com/file/d/1xfeIcnyVi331QWtDYDPM6UJKjJvWQkbH/view?usp=sharing'},
+  {date:'2026-06-19', symbol:'NIFTY 23900 CE', qty:65, sell:130.85, buy:173.70, signal:'', chart:'https://drive.google.com/file/d/1xBHw6N972i5-kUXBSMPGwOstmCL04mIf/view?usp=sharing'},
+  {date:'2026-06-18', symbol:'NIFTY 24100 PE', qty:65, sell:130.30, buy:82.75, signal:'', chart:'https://drive.google.com/file/d/10gVxqw7CKH3_P0EjPHtNEooEWaEP4xqx/view?usp=sharing'},
+
 ];
 
 const enriched = TRADES.map(t => ({...t, pnl: (t.sell - t.buy) * t.qty}));
@@ -389,6 +392,13 @@ function buildTape(items){
 }
 tape.innerHTML = buildTape(tapeItems) + buildTape(tapeItems);
 
+function linkOrDash(url, label){
+  if(url && url.trim() !== ''){
+    return '<a class="chart-link" href="' + url + '" target="_blank" rel="noopener">' + label + ' →</a>';
+  }
+  return '<span class="chart-link muted">—</span>';
+}
+
 const logBody = document.getElementById('logBody');
 logBody.innerHTML = enriched.slice().reverse().map(t => {
   const win = t.pnl >= 0;
@@ -401,21 +411,14 @@ logBody.innerHTML = enriched.slice().reverse().map(t => {
     '<td class="num">' + t.buy.toFixed(2) + '</td>' +
     '<td class="num ' + (win?'pnl-pos':'pnl-neg') + '">' + (win?'+':'') + fmtINR(t.pnl) + '</td>' +
     '<td><span class="badge ' + (win?'win':'loss') + '">' + (win?'Win':'Loss') + '</span></td>' +
-    '<td><a class="chart-link" href="' + t.chart + '" target="_blank" rel="noopener">View →</a></td>' +
+    '<td>' + linkOrDash(t.signal, 'View') + '</td>' +
+    '<td>' + linkOrDash(t.chart, 'View') + '</td>' +
   '</tr>';
 }).join('');
 
 const ctx = document.getElementById('equityCanvas');
 const labels = enriched.map(t => new Date(t.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}));
 const data = enriched.map(t => t.cum);
-
-const gradientPlugin = {
-  id: 'fillGrad',
-  beforeDatasetsDraw(chart){
-    const {ctx, chartArea} = chart;
-    if(!chartArea) return;
-  }
-};
 
 new Chart(ctx, {
   type: 'line',
@@ -468,7 +471,6 @@ new Chart(ctx, {
         '<div style="color:#E8EAED;font-weight:500;margin-bottom:6px;">' + t.symbol + '</div>' +
         '<div>Trade P&amp;L: <span class="tt-pnl ' + (win?'green':'red') + '">' + (win?'+':'') + fmtINR(t.pnl) + '</span></div>' +
         '<div style="color:#8B919A;">Cumulative: ' + fmtINR(t.cum) + '</div>';
-      const canvasRect = chart.canvas.getBoundingClientRect();
       const wrapRect = document.getElementById('curveWrap').getBoundingClientRect();
       const point = elements[0].element;
       let left = point.x + 14;
